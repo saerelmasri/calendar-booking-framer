@@ -1,0 +1,28 @@
+# ---------------------------------------------------------------
+# Supabase CLI scratch. Recreated automatically, and it records
+# which Supabase project and organisation this folder last used:
+# one client's details, which don't belong in the shared repo.
+# ---------------------------------------------------------------
+supabase/.temp/
+supabase/.branches/
+
+# ---------------------------------------------------------------
+# Anything that could hold a secret. Real secrets live in Supabase
+# (Edge Functions → Secrets) and never in this repository.
+# ---------------------------------------------------------------
+.env
+.env.*
+!.env.example
+secrets/
+
+# Google service account key files, in case one is ever saved here.
+# Google names them <project-id>-<12 hex characters>.json
+*-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f].json
+
+# ---------------------------------------------------------------
+# Dependencies and operating-system clutter
+# ---------------------------------------------------------------
+node_modules/
+.DS_Store
+Thumbs.db
+desktop.ini

@@ -1,0 +1,8 @@
+{
+  "name": "calendar-booking-framer",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --disable-warning=ExperimentalWarning --test"
+  }
+}
