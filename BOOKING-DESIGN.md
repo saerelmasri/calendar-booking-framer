@@ -243,6 +243,11 @@ bookings**: a missing setting should never make a session unlimited.
 The timezone is deliberately not a setting: it is read from the calendar itself, so it can't
 drift out of step with it.
 
+**Two values also go in Supabase Vault**, for the timer: the project's address
+(`project_url`) and the same sync token (`sync_token`). The token therefore lives in two
+places — the function's settings and the Vault — and **they must match**. To change it,
+change both together. If they differ, the timer's requests are refused.
+
 ### Setting up a new client
 
 1. A new Supabase project for the client
@@ -250,10 +255,19 @@ drift out of step with it.
    with the service account's email, *See all event details*)
 3. The settings above in the client's Supabase project, including a newly generated
    `SYNC_TOKEN`
-4. Create the tables: `supabase link --project-ref <ref>` (asks for the database
-   password), then `supabase db push`
-5. Deploy the functions from this repository
-6. Drop the booking component into the client's Framer site and fill in its settings
+4. The project address and the same `SYNC_TOKEN` in Supabase Vault, run in the SQL Editor:
+
+   ```sql
+   select vault.create_secret('https://<project-ref>.supabase.co', 'project_url');
+   select vault.create_secret('<the SYNC_TOKEN value>', 'sync_token');
+   ```
+
+   The SQL Editor saves queries automatically, so delete that query tab afterwards, or the
+   token stays saved in it.
+5. Create the tables and the timer: `supabase link --project-ref <ref>` (asks for the
+   database password), then `supabase db push`
+6. Deploy the functions from this repository
+7. Drop the booking component into the client's Framer site and fill in its settings
 
 No code changes.
 
@@ -273,6 +287,24 @@ date) and `cancelled`.
 **The Table Editor shows times in UTC.** In September Beirut is three hours ahead, so a 2pm
 class appears as `11:00+00`. That is the same moment written differently. The website and
 the dashboard always show the calendar's own timezone.
+
+**The timer:** Supabase's *Integrations → Cron* page lists the `calendar-sync` job and every
+run. To test the timer's path without waiting for the hour, run its request once by hand in
+the SQL Editor, then look at the reply a few seconds later:
+
+```sql
+select net.http_post(
+  url := (select decrypted_secret from vault.decrypted_secrets where name = 'project_url')
+         || '/functions/v1/calendar-sync',
+  headers := jsonb_build_object('x-sync-token',
+    (select decrypted_secret from vault.decrypted_secrets where name = 'sync_token')),
+  timeout_milliseconds := 60000
+);
+
+select status_code, content from net._http_response order by created desc limit 1;
+```
+
+`200` with `"ok":true` means the Vault values, the token and the sync all work together.
 
 ---
 
@@ -297,13 +329,19 @@ matching the calendar, and we can state the worst case. That's a promise we can 
 ### Four mechanisms
 
 **1. The webhook is a doorbell, not a delivery.** Google's notification says *something
-changed*, not what. We then ask Google for everything that's different since last time.
-This is why a missed webhook loses nothing — the next one catches the backlog too.
+changed*, not what. The sync then re-reads the whole window from Google and compares it
+with the table. This is why a missed webhook loses nothing — the next sync of any kind
+catches everything. *(Not built yet.)*
 
-**2. A scheduled check regardless.** A job runs every ten minutes and syncs whether or not
-a webhook arrived. If every webhook failed, the site is still never more than ten minutes
-stale. Webhook for speed, timer for correctness — neither is sufficient alone, and most
-integrations only build the first.
+**2. A scheduled check regardless.** A job runs **every hour, on the hour**, and syncs
+whether or not a webhook arrived. If every webhook failed, the site is still never more than
+an hour out of date. Webhook for speed, timer for correctness — neither is sufficient alone,
+and most integrations only build the first. Until the webhook is built, this timer is the
+only trigger, so an hour is today's worst case.
+
+The timer is a database job (`pg_cron`) that sends a web request (`pg_net`) to the sync,
+carrying the sync token. The project address and the token are read from Supabase Vault
+each time, because they differ per client and can't live in this repository.
 
 **3. Subscription renewal.** Google's webhook subscriptions expire after about a month. If
 nothing renews them, notifications stop silently and everything looks fine until someone
@@ -329,6 +367,11 @@ the same change twice just rewrites the same row with the same values.
   frees itself after three minutes if a sync crashes without releasing it.
 - **Failures are recorded, as sentences.** Every failure is written to `sync_status` in a
   form the dashboard can show, e.g. *The GOOGLE_CALENDAR_ID setting is missing*.
+- **Silence is a failure too.** A sync that never starts — mismatched tokens, a broken
+  function, a stopped timer — can't record anything. So the dashboard also warns when
+  `last_success_at` is more than about **two and a half hours** old: two missed hourly runs
+  plus a margin. One rule catches every silent failure, including ones nobody has thought
+  of yet. *(Built with the dashboard.)*
 
 ### The rule that protects customers
 
@@ -488,6 +531,10 @@ booking removes the record of it entirely.
 - Calls without the token, or with a wrong one, were refused (`403`)
 - No raw description text reaches the output
 
+**The timer** — migration `supabase/migrations/20260924160000_timer.sql`: a `pg_cron` job
+that calls the sync every hour, on the hour, reading the address and token from Vault.
+*Being verified.*
+
 ---
 
 ## Open items
@@ -502,8 +549,6 @@ booking removes the record of it entirely.
     count drifts and the website can overbook the session
   - Whenever WhatsApp is used, the pre-written message names the session, the day, the date
     and the time, so the business never has to write back and ask
-- **Worst-case staleness.** Ten minutes is the proposed timer interval. Cheap, and fine for
-  a timetable that changes a few times a week.
 - **Which Google account owns each client's calendar**, and how the business grants access
   to it. For testing it is the agency's.
 - **Who owns each client's Supabase project** — the agency or the client. Affects billing,
@@ -527,3 +572,6 @@ booking removes the record of it entirely.
 - The dashboard never creates or edits sessions, but manages bookings: add, cancel, replace
 - The number of places is a hard limit, including from the dashboard
 - A full session stays visible on the site, without a Book button, offering a WhatsApp link
+- The timer runs every hour. Until Google's webhook is built, a calendar change reaches the
+  website within an hour; with the webhook, within seconds, and the hourly timer becomes the
+  safety net
