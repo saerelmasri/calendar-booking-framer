@@ -1,14 +1,14 @@
 # Calendar booking system — design
 
-**Last updated:** 24 September 2026
-**Status:** agreed shape. The calendar mirror is built and tested on a real calendar;
-the public calendar, booking and the dashboard are not built yet.
+**Last updated:** 28 September 2026
+**Status:** agreed shape. The calendar mirror and its hourly timer are built and tested on a
+real calendar; the public calendar is being built; booking and the dashboard are not built yet.
 
 ---
 
 ## What this is
 
-A booking system for Framer websites. A visitor sees the week's sessions and books one
+A booking system for Framer websites. A visitor sees the month's sessions and books one
 instantly. The business manages its timetable in Google Calendar and sees its bookings on a
 dashboard.
 
@@ -95,10 +95,12 @@ Supabase → the website is the component's.
 
 ### Framer — what people see
 
-**The public calendar.** One week at a time: **this week, with an arrow to next week**, so
-that on a Saturday evening someone can still book Monday's session.
+**The public calendar.** The current month, like a wall calendar, so a visitor sees every
+session this month at a glance. There is no arrow: next month's sessions appear on the 1st.
+The cost is that in the last days of a month, the grid doesn't show the next month's sessions
+yet. On a phone this doesn't arise: phones get a list of the upcoming sessions, 30 days ahead.
 
-**Past sessions stay visible**, greyed out and without a Book button. The week looks
+**Past sessions stay visible**, greyed out and without a Book button. The month looks
 complete, and a visitor on Wednesday learns that Mat Flow runs on Mondays. From its start
 time onwards a session can't be booked — and the database refuses it anyway, so hiding the
 button is presentation, not protection.
@@ -107,11 +109,11 @@ Booking is two fields and an instant answer.
 
 A **full session still appears in full** — time, name, details, location — but has no Book
 button. It reads *Full* instead. Hiding full sessions would be worse: someone browsing
-Tuesday evening should know a 19:00 reformer class exists even when this week is taken,
+Tuesday evening should know a 7 PM reformer class exists even when this week is taken,
 because that is how they discover it for next week.
 
 A full session offers one way forward: a link that opens WhatsApp with the business's number
-and a message already written — *"Hi, I'd like to join the waiting list for Tuesday 19:00
+and a message already written — *"Hi, I'd like to join the waiting list for Tuesday 7 PM
 Reformer Foundations."*
 
 This is **not a waiting list feature.** Nothing is stored, there is no queue, nobody is
@@ -222,6 +224,115 @@ like a barber's `1`, "Dentist" would become a bookable slot. Two protections:
 
 ---
 
+## The public calendar
+
+The month as visitors see it, on the client's Framer site. **Display only in this step** —
+booking is designed separately, once the booking channel is chosen.
+
+### What the website can read
+
+The website reads with Supabase's public key, which anyone can see in the site's code, so
+rules in the database are the protection. They let it read only what a visitor should see,
+and write nothing:
+
+- name, start and end, location, and details (e.g. `Instructor`)
+- whether the session is **bookable**. The owner's `problem` notes, such as *No "Capacity"
+  line*, stay private
+- the calendar's timezone
+- cancelled sessions are left out entirely
+
+### Layout — the month, like a wall calendar
+
+- **The current month:** its title (*September 2026*), a column per weekday, a row per week.
+  Days before the 1st and after the last are left blank
+- Each day lists its classes **in time order**: time · class name · details, on a shade of
+  the site's colour
+- Times on the **12-hour clock**: *9:00 AM*, *4:30 PM*
+- **No arrows.** Next month's classes appear on the 1st, so in the last days of a month the
+  desktop grid doesn't show them yet. The phone list isn't affected: it always runs 30 days
+  ahead
+- **Past days and past classes greyed out** — a class from the moment it starts, which is
+  also when it stops being bookable. Today gently highlighted
+- **Phone:** a month grid leaves about 50px per day, too narrow for class names, so phones
+  show a short list instead: the **upcoming classes, from now to 30 days ahead**, whatever
+  month they're in. One row per class (*Tue, Sep 29 · 2:30 PM · Popup Class · MJ*), with no
+  past classes and no empty days. Classes that can't be booked stay in the list, marked
+- Clicking a class does nothing yet
+
+Considered and rejected:
+
+- *A week at a time, with an arrow to next week* — the first design, a grid with hour rows
+  down the side and the phone swiping it sideways
+- *The next 4 weeks, rolling from this Monday* — never runs out at the end of a month, but
+  isn't a calendar month
+
+### Which days show
+
+A setting per client site: **which days to show**, default Monday to Saturday. A studio open
+on Sundays switches Sunday on.
+
+**A hidden day still gets its column if it has a class that month.** A one-off Sunday
+workshop at a studio normally closed on Sundays must not be invisible, and so unbookable.
+
+### Colour
+
+One setting: the site's **main colour**. Each class name automatically gets a **shade** of it,
+lighter or deeper, and keeps that shade from month to month. Shades stay light enough that
+dark text on them is always readable. With many classes some share a shade, which is fine
+because every class shows its name. For the same reason there is no legend.
+
+Considered and rejected:
+
+- *Google Calendar's own event colours* — gives the owner control, but Google's colours clash
+  with the site, and translating them into the site's palette added complexity
+- *A different generated colour per class name* — unlimited colours, but people can't tell
+  more than 8–10 apart
+- *Colouring by a `Level:` line* — readable with many classes, but another convention for the
+  owner to learn
+
+### Dates and times — the one piece of tricky logic
+
+The month, "today" and every time shown are worked out **in the calendar's timezone**, never
+the visitor's: at 1:30 AM on 1 October in Beirut it is October, though UTC is still in
+September. Lebanon changes its clocks **at midnight**, so on one Sunday a year midnight
+doesn't exist, and on another the hour before midnight happens twice. The logic reads times
+from the browser's own timezone database and counts days on dates alone, so neither can put
+a class on the wrong day. It lives in `framer/month.ts`, tested by `npm test`.
+
+### States
+
+- **Loading** — a soft placeholder grid
+- **Empty month** — "No classes scheduled this month"
+- **Can't load** — a short message; the rest of the page is unaffected
+
+### Settings on the component, per client site
+
+The component is `framer/MonthCalendar.tsx`; its settings panel in Framer holds everything
+that differs between clients:
+
+- **Supabase URL** and **public key** — both safe to publish
+- **View** — *Month* or *List*. Framer lets each breakpoint have its own settings, so the
+  phone breakpoint is set to *List*. No code measures the screen, and nothing jumps from grid
+  to list as the page loads
+- **Days** to show — default Monday to Saturday
+- **Language** — gives the month and day names (*September*, *septembre*); `en-GB` gives
+  British dates (*Tue 29 Sept*)
+- **Colours** — main colour (the shades and today's highlight), text, muted text, lines
+- **Fonts** — one for the title, one for everything else
+- **Words** — list title, empty month, empty list, *Unavailable*, can't load — so it works
+  in any language
+
+With the URL or key missing, the component says so instead of failing silently, which helps
+when setting up a new client. In Framer's editor it shows made-up classes, so it can be
+designed without data; real classes appear in Preview and on the live site.
+
+### On Neroli's site
+
+It replaces the Feed Ticker in the Schedule section. The ticker is hidden, not deleted, so it
+can come back.
+
+---
+
 ## Settings per client
 
 Everything that differs between clients is a setting in that client's Supabase project.
@@ -311,9 +422,10 @@ select status_code, content from net._http_response order by created desc limit 
 ## How the calendar stays in sync
 
 The owner changes something in Google Calendar; the website must reflect it. The mirror
-copies everything from **about a week ago to about two weeks ahead** into the `sessions`
-table, which always covers this week and next, whatever day it is. Because the window is
-plain "days from now", the sync needs no timezone maths; only the calendar display does.
+copies everything from **about a month ago to about a month ahead** (32 days each way) into
+the `sessions` table, which always covers the whole of this month, whatever day it is, and
+the whole of next month before it starts. Because the window is plain "days from now", the
+sync needs no timezone maths; only the calendar display does.
 Sessions older than the window stay in the database as history; they simply stop being
 refreshed.
 
@@ -382,7 +494,7 @@ it — and the information needed to tell those people is destroyed by the very 
 syncing.
 
 Instead the session is marked cancelled. It disappears from the public site straight away,
-and appears on the dashboard as *"Wed 18:00 Reformer — cancelled, 5 people booked"* with
+and appears on the dashboard as *"Wed 6 PM Reformer — cancelled, 5 people booked"* with
 their numbers.
 
 The mirror copies the calendar. It never destroys something the calendar doesn't know
@@ -507,7 +619,8 @@ booking removes the record of it entirely.
 **The calendar mirror** — `supabase/functions/calendar-sync`, and the migration
 `supabase/migrations/20260924120000_mirror.sql`:
 
-- Tables `sessions` and `sync_status`. Row-level security is on, with no public access yet
+- Tables `sessions` and `sync_status`. Row-level security is on; the public key reads only
+  what the public calendar rules below allow
 - Database functions `begin_sync`, `apply_sync` and `fail_sync`, callable only by the sync
 - The sync function, protected by `SYNC_TOKEN`. Run by hand for now; the timer and the
   webhook will call it the same way
@@ -533,7 +646,36 @@ booking removes the record of it entirely.
 
 **The timer** — migration `supabase/migrations/20260924160000_timer.sql`: a `pg_cron` job
 that calls the sync every hour, on the hour, reading the address and token from Vault.
-*Being verified.*
+Verified on 25 September 2026: the timer's request sent by hand from the SQL Editor returned
+`"ok":true`, and a class created in Google Calendar appeared in the table at the top of the
+hour with nobody running anything.
+
+**The public calendar rules** — migration `supabase/migrations/20260928200000_public_calendar.sql`:
+a `bookable` yes/no column on `sessions` that Postgres keeps up to date itself, and rules
+letting the public key read sessions that aren't cancelled (seven columns only) and the
+calendar's timezone. Verified on 28 September 2026 with the public key: the classes came back
+with only those columns (*Barre Basics* showed `bookable: false`, its problem note hidden);
+asking for `problem` and trying to change a title were both refused; the timezone read
+`Asia/Beirut`.
+
+**The month logic** — `framer/month.ts`, with 30 tests in `tests/month.test.mjs`: the month
+and "today" in the calendar's timezone, both of Lebanon's midnight clock changes, the grid in
+whole weeks with blank days outside the month, a hidden day getting its column when it has a
+class, the phone's list of upcoming classes (30 days ahead, unbookable ones kept), 12-hour
+times, names in the site's language, and the colour shades. The sync now copies 32 days back
+and 32 days ahead. Verified on 28 September 2026 with the real data:
+
+- After redeploying, the sync added October's three remaining Reformer classes
+- September came out with its four classes on the right days and times; the past ones
+  greyed, *Barre Basics* not bookable
+- October's Sunday class (4 October) gave October a Sunday column
+- The 28 October class is stored an hour later in UTC than the others, because Lebanon is on
+  winter time by then, and still reads 2:00 PM
+
+**The calendar component** — `framer/MonthCalendar.tsx`: loads the classes, shows the month
+grid or the phone list, the loading / empty / can't-load states, and the settings panel.
+Type-checked with TypeScript on 29 September 2026; not yet run inside Framer — that is the
+next step, placing it on Neroli's site.
 
 ---
 
@@ -565,8 +707,8 @@ that calls the sync every hour, on the hour, reading the address and token from 
 - The number of places: written value, else the client's default, else flagged
 - The timezone comes from the calendar itself
 - All-day events are skipped
-- The public calendar shows one week at a time — this week and next — with past sessions
-  greyed out and unbookable
+- The public calendar shows the current month, like a wall calendar, with no arrows; next
+  month appears on the 1st. Past sessions are greyed out and unbookable
 - Deleted and moved sessions both notify the same way
 - Bookings survive a move
 - The dashboard never creates or edits sessions, but manages bookings: add, cancel, replace
@@ -575,3 +717,16 @@ that calls the sync every hour, on the hour, reading the address and token from 
 - The timer runs every hour. Until Google's webhook is built, a calendar change reaches the
   website within an hour; with the webhook, within seconds, and the hourly timer becomes the
   safety net
+- Visitors read only what the rules on the tables allow: owner's problem notes stay private,
+  cancelled sessions are hidden, nothing can be written. Rules on the tables rather than a
+  separate view, because a view reads with its owner's full rights (one lock on writing
+  instead of two) and Supabase's Security Advisor flags such views as an error
+- On desktop the month is a grid: a column per weekday, a row per week, each day listing its
+  classes in time order. On a phone, a list of the upcoming classes, from now to 30 days
+  ahead, whatever month they're in; classes that can't be booked stay in the list, marked
+- Times are shown on the 12-hour clock (*4:30 PM*)
+- Days shown is a per-client setting, default Monday–Saturday; a hidden day still gets its
+  column if it has a class that month
+- Colour is automatic: shades of the site's main colour, one per class name, no legend
+- Month and day names come from a language setting on the component
+- The mirror copies 32 days back and 32 days ahead, so the whole month is always there

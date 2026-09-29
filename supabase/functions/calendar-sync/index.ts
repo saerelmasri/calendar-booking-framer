@@ -40,9 +40,9 @@ async function sync(db: SupabaseClient) {
   const key = JSON.parse(setting("GOOGLE_SERVICE_ACCOUNT_KEY")) as ServiceAccountKey
   const calendarId = setting("GOOGLE_CALENDAR_ID")
 
-  // ① About a week back and two weeks ahead: this week and next, whatever day it is.
-  const from = new Date(Date.now() - 8 * DAY)
-  const to = new Date(Date.now() + 15 * DAY)
+  // ① About a month back and a month ahead: the whole of this month, whatever day it is.
+  const from = new Date(Date.now() - 32 * DAY)
+  const to = new Date(Date.now() + 32 * DAY)
 
   // ② Every page from Google. Any failure throws before anything is written.
   const token = await getAccessToken(key)
