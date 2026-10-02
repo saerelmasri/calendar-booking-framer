@@ -1,18 +1,18 @@
 // month.ts — the logic behind the public calendar: which month, which days, which
-// classes on each day, the phone's list of upcoming classes, and each class's shade
-// of the site's colour.
+// classes on each day, the phone's list of upcoming classes, places left and the
+// waiting-list link, and each class's shade of the site's colour.
 //
 // No screen and no network here, so the tests can load it directly.
 // Every date and time is worked out in the calendar's timezone, never the visitor's.
 
-export interface CalendarSession {    // one row, as the website reads it from Supabase
+export interface CalendarSession {    // one class, as the website reads it from Supabase
   id: string
   title: string
   starts_at: string
   ends_at: string
   location: string | null
   details: Record<string, string>
-  bookable: boolean
+  places_left: number | null          // null = no limit
 }
 
 export type DayKey = string           // a date in the calendar's timezone, like "2026-09-28"
@@ -60,6 +60,12 @@ function clock(moment: Date, timeZone: string) {
 
 export function calendarDay(moment: Date, timeZone: string): DayKey {
   return clock(moment, timeZone).day
+}
+
+// A moment's time on the calendar's clock: timeOf(moment, "Asia/Beirut") is "4:30 PM".
+export function timeOf(moment: Date, timeZone: string): string {
+  const { hour, minute } = clock(moment, timeZone)
+  return formatTime(hour, minute)
 }
 
 // The 12-hour clock: formatTime(16, "30") is "4:30 PM", formatTime(0, "15") is "12:15 AM".
@@ -157,13 +163,38 @@ export function buildMonth(
 const LIST_DAYS = 30          // the phone list runs from today to 30 days ahead
 
 // The phone view: classes that haven't started yet, from now to 30 days ahead, in time
-// order, whatever month they're in. Classes that can't be booked stay in; the page marks them.
+// order, whatever month they're in. Full classes stay in; the page marks them.
 export function upcoming(sessions: CalendarSession[], { now, timeZone }: { now: Date; timeZone: string }): PlacedSession[] {
   const lastDay = addDays(calendarDay(now, timeZone), LIST_DAYS)
   return sessions
     .map((s) => place(s, now, timeZone))
     .filter((s) => !s.past && s.day <= lastDay)
     .sort(byStart)
+}
+
+// ------------------------------------------------------------------
+//  Places left and the waiting list
+// ------------------------------------------------------------------
+
+// What a class shows about its places: "full", the number when only a few are left, or
+// nothing. `showFrom` is the client's setting: 3 shows "3 places left" and fewer; 0 never
+// shows a number, only "full".
+export function placesNote(placesLeft: number | null, showFrom: number): "full" | number | null {
+  if (placesLeft === null) return null                  // no limit
+  if (placesLeft <= 0) return "full"
+  return placesLeft <= showFrom ? placesLeft : null
+}
+
+// Puts values into the client's wording: fillIn("See you {day}", { day: "Wed" }) is
+// "See you Wed". A name with no value is left as it is.
+export function fillIn(template: string, values: Record<string, string>): string {
+  return template.replace(/\{(\w+)\}/g, (whole, name: string) => values[name] ?? whole)
+}
+
+// A link that opens WhatsApp with the message ready to send; null when no number is set.
+export function whatsappLink(number: string, message: string): string | null {
+  const digits = number.replace(/\D/g, "")
+  return digits ? `https://wa.me/${digits}?text=${encodeURIComponent(message)}` : null
 }
 
 // ------------------------------------------------------------------

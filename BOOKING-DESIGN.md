@@ -181,27 +181,27 @@ The owner wrote something deliberate that can't be read, and guessing could over
 A missing or unreadable number of places will happen in the first week. What matters is
 that it's visible.
 
-The dangerous version: the session quietly doesn't appear. The owner looks at their
-calendar, looks at the website, can't reconcile them, stops trusting the system, goes back
-to WhatsApp.
+Visitors should never meet a class they can't book, so a flagged session is **not shown on
+the website at all** (decided 29 September 2026; the first design showed it, marked as not
+bookable). The failure is made loud for the owner instead: the dashboard lists every hidden
+session with the reason as a plain sentence, e.g. *No "Capacity" line in the description*.
 
-Instead:
+The risk to keep in mind: until the dashboard exists, a flagged class simply disappears from
+the site, and the owner finds out by noticing it's missing. That is the dashboard's first
+job. A client whose classes always have the same size can also set a default number of
+places, so a forgotten line isn't a problem in the first place.
 
-- the session **still appears** on the website, marked as not bookable
-- the dashboard shows the reason as a plain sentence the owner understands, e.g.
-  *No "Capacity" line in the description*
-
-Parsing is perfectly survivable as long as failure is visible. It is only dangerous when it
-is silent.
+Parsing is perfectly survivable as long as failure is visible to the owner. It is only
+dangerous when it is silent.
 
 ### Five clients, the same code
 
 | | Details shown | Places come from | If no number is written |
 |---|---|---|---|
-| Pilates studio | Instructor | Capacity | flag, not bookable |
+| Pilates studio | Instructor | Capacity | flag, hide |
 | Barber | — | — | 1 |
 | Walking tours | Guide, Language, Meeting point | Spots | 15 |
-| Cooking school | Chef, Niveau | Places | flag, not bookable |
+| Cooking school | Chef, Niveau | Places | flag, hide |
 | Open day | — | — | unlimited |
 
 This was tested on 24 September: the same code, reading the same calendar, behaved as
@@ -236,10 +236,9 @@ rules in the database are the protection. They let it read only what a visitor s
 and write nothing:
 
 - name, start and end, location, and details (e.g. `Instructor`)
-- whether the session is **bookable**. The owner's `problem` notes, such as *No "Capacity"
-  line*, stay private
 - the calendar's timezone
-- cancelled sessions are left out entirely
+- cancelled sessions, and sessions with a setup problem (the owner's `problem` notes, such
+  as *No "Capacity" line*), are left out entirely
 
 ### Layout — the month, like a wall calendar
 
@@ -256,7 +255,7 @@ and write nothing:
 - **Phone:** a month grid leaves about 50px per day, too narrow for class names, so phones
   show a short list instead: the **upcoming classes, from now to 30 days ahead**, whatever
   month they're in. One row per class (*Tue, Sep 29 · 2:30 PM · Popup Class · MJ*), with no
-  past classes and no empty days. Classes that can't be booked stay in the list, marked
+  past classes and no empty days. Full classes stay in the list, marked *Full*
 - Clicking a class does nothing yet
 
 Considered and rejected:
@@ -329,7 +328,19 @@ designed without data; real classes appear in Preview and on the live site.
 ### On Neroli's site
 
 It replaces the Feed Ticker in the Schedule section. The ticker is hidden, not deleted, so it
-can come back.
+can come back. The section used to be side by side (text left, ticker right); a month grid
+needs the width, so on desktop and tablet the section now stacks: the text keeps its width
+(480px) and the calendar runs full width below it. The phone breakpoint already stacked; its
+calendar is set to *List*. Main colour: the site's olive (*Green*, rgb(128, 132, 67)).
+
+### Two things Framer imposes
+
+- **Code files can't import each other.** In Framer the component and `month.ts` are one
+  code file: `month.ts` pasted in place of the component's import. The repo keeps two files
+  so the logic stays testable
+- **A colour style reaches code as its name only** (`var(--token-…)`), with no colour value,
+  so the shades can't be worked out from it and come out grey. Set the main colour as a plain
+  colour, not a colour style. (Today's highlight is unaffected; the browser resolves it.)
 
 ---
 
@@ -674,23 +685,45 @@ and 32 days ahead. Verified on 28 September 2026 with the real data:
 
 **The calendar component** — `framer/MonthCalendar.tsx`: loads the classes, shows the month
 grid or the phone list, the loading / empty / can't-load states, and the settings panel.
-Type-checked with TypeScript on 29 September 2026; not yet run inside Framer — that is the
-next step, placing it on Neroli's site.
+Placed on Neroli's site on 29 September 2026 (see *On Neroli's site*): Framer's own type
+check passes, strict mode included, and screenshots of the editor canvas (which shows
+made-up classes) look right on desktop, tablet and phone. Still to check: the real classes,
+in Framer's Preview.
+
+**Bookings** — migrations `…_hide_problem_sessions.sql` (sessions with a setup problem no
+longer reach the website) and `…_bookings.sql`: the `bookings` table, closed to the public,
+with one booking per phone per session; `book_session()`, the website's only way to book,
+which locks the session and counts before saving; and `places_left()`, numbers only.
+Verified on 29 September 2026 with the public key: a booking answered *booked* with 9 places
+left; the same phone typed differently answered *already booked*; an empty name, a
+non-phone, a flagged class and a started class were each refused with the right answer;
+**16 bookings fired at the same moment at a class with 9 places left gave exactly 9 bookings
+and 7 *full***; places left then read 0; reading the `bookings` table was refused.
+
+**Booking on the calendar** — `framer/MonthCalendar.tsx`: places left (from 3 or fewer) and
+*Full* on the cards; tapping a class opens a panel with name, phone and Book, answered at
+once; the WhatsApp waiting-list link on full classes when a number is set; the *Booking*
+setting for the WhatsApp method. The old `bookable` column was dropped
+(`…_drop_bookable.sql`). Saer booked through Framer's Preview on 1–2 October 2026 and it
+worked.
+
+**The dashboard's database** — migration `…_dashboard.sql`: the `owners` list; `moved_from`,
+filled by a trigger when the sync moves a session; one shared booking routine
+(`add_booking`) behind both `book_session` and the owner's `owner_add`, so both follow the
+same rules (only the owner can add to a class that has started); `owner_cancel`,
+`owner_replace` (one person swapped for another in the same booking, so the place is never
+free in between) and `owner_sessions` (everything the dashboard shows, in one call).
+Verified on 3 October 2026. As the owner, from a script in the SQL Editor: an account off
+the list was refused; the read returned the classes and the last sync; add → *booked*,
+the same phone again → *already booked*, replace → *replaced*, cancel → *cancelled*, nothing
+left behind. With the public key: the website's booking still answers through the shared
+routine; all four owner functions, both helpers and the owners table were refused.
+Public sign-ups are off and the Neroli test owner account exists.
 
 ---
 
 ## Open items
 
-- **How visitors book: website, WhatsApp, or both.** To be decided when the booking step is
-  built — probably as a per-client setting on the calendar component. The places count is
-  what decides whether each works:
-  - *Website only* — the count is exact, automatically
-  - *WhatsApp only* — the system never learns who booked, so **places left must not be
-    shown**: the number would be wrong
-  - *Both* — WhatsApp bookings **must be entered in the dashboard** (the Add action), or the
-    count drifts and the website can overbook the session
-  - Whenever WhatsApp is used, the pre-written message names the session, the day, the date
-    and the time, so the business never has to write back and ask
 - **Which Google account owns each client's calendar**, and how the business grants access
   to it. For testing it is the agency's.
 - **Who owns each client's Supabase project** — the agency or the client. Affects billing,
@@ -723,10 +756,36 @@ next step, placing it on Neroli's site.
   instead of two) and Supabase's Security Advisor flags such views as an error
 - On desktop the month is a grid: a column per weekday, a row per week, each day listing its
   classes in time order. On a phone, a list of the upcoming classes, from now to 30 days
-  ahead, whatever month they're in; classes that can't be booked stay in the list, marked
+  ahead, whatever month they're in; full classes stay in the list, marked *Full*
+- A session with a setup problem is not shown on the website at all; the owner sees it, with
+  the reason, on the dashboard
 - Times are shown on the 12-hour clock (*4:30 PM*)
 - Days shown is a per-client setting, default Monday–Saturday; a hidden day still gets its
   column if it has a class that month
 - Colour is automatic: shades of the site's main colour, one per class name, no legend
 - Month and day names come from a language setting on the component
 - The mirror copies 32 days back and 32 days ahead, so the whole month is always there
+- **Visitors book on the website** (decided 29 September 2026): name and phone, instant
+  answer. Because every booking goes through the system, the places count is exact and can
+  be shown. Bookings taken by phone, WhatsApp or in person are entered by the owner with the
+  dashboard's Add. WhatsApp stays only as the waiting-list link on a full class. Rejected:
+  *WhatsApp only* (the system would never know who booked, so places left couldn't be shown)
+  and *both* (every WhatsApp booking would have to be typed into the dashboard, or the site
+  could overbook)
+- **The owner's dashboard is a hidden page on the client's Framer site** (e.g. `/dashboard`,
+  out of the menu and search engines), built as a code component like the calendar
+  (decided 2 October 2026). The owner logs in with **email and password** through Supabase's
+  sign-in; public sign-ups are off, the agency creates the owner's account at onboarding,
+  and only accounts on an owners list can see bookings or use Add, Cancel and Replace
+- **Two booking methods, chosen per client** (decided 2 October 2026) with the component's
+  *Booking* setting:
+  - *Website* — the full system: name and phone, instant answer, places enforced and shown,
+    bookings on the dashboard
+  - *WhatsApp* — tapping a class shows its details and a **Book through WhatsApp** button
+    that opens a chat with the studio, message ready (*"Hi, I'd like to book {class} on
+    {day} at {time}."*). No places or *Full* are shown, because the system doesn't know who
+    booked; the studio confirms in WhatsApp as it does today
+  - Never both on one site. An **automatic WhatsApp confirmation** after a website booking
+    (Meta's WhatsApp Business Platform: business verification, approved templates, a cost per
+    conversation) is a paid add-on for later. A "send your booking to the studio on WhatsApp"
+    button was rejected: an extra step for the customer, for nothing

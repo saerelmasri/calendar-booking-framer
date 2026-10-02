@@ -12,14 +12,17 @@ import {
   calendarDay,
   dayLabel,
   fetchRange,
+  fillIn,
   formatTime,
   luminance,
   monthTitle,
   parseColour,
+  placesNote,
   shadeFor,
   upcoming,
   weekdayNames,
   weekdayOf,
+  whatsappLink,
 } from "../framer/month.ts"
 
 const BEIRUT = "Asia/Beirut"
@@ -34,7 +37,7 @@ const session = (title, startsUtc) => ({
   ends_at: startsUtc,
   location: null,
   details: {},
-  bookable: true,
+  places_left: null,
 })
 
 // The month as the website would show it at `now`. By default: Monday 28 September 2026, 9 AM in Beirut.
@@ -193,10 +196,39 @@ test("the phone list runs 30 days ahead, into next month", () => {
   ]), ["2026-10-28 2:00 PM 28 October"])
 })
 
-test("classes that can't be booked stay in the list, marked", () => {
-  const barre = { ...session("Barre Basics", "2026-09-30T11:00:00+00:00"), bookable: false }
-  const [s] = upcoming([barre], { now: at("2026-09-28T06:00:00Z"), timeZone: BEIRUT })
-  assert.equal(s.bookable, false)
+test("full classes stay in the list", () => {
+  const full = { ...session("Reformer", "2026-09-30T11:00:00+00:00"), places_left: 0 }
+  const [s] = upcoming([full], { now: at("2026-09-28T06:00:00Z"), timeZone: BEIRUT })
+  assert.equal(s.places_left, 0)
+})
+
+// ------------------------------------------------------------------
+//  Places left and the waiting list
+// ------------------------------------------------------------------
+
+test("places: the number shows only when few are left", () => {
+  assert.equal(placesNote(8, 3), null)      // plenty: nothing shown
+  assert.equal(placesNote(3, 3), 3)
+  assert.equal(placesNote(1, 3), 1)
+  assert.equal(placesNote(0, 3), "full")
+})
+
+test("places: no limit shows nothing; 0 as the setting shows only full", () => {
+  assert.equal(placesNote(null, 3), null)
+  assert.equal(placesNote(1, 0), null)
+  assert.equal(placesNote(0, 0), "full")
+})
+
+test("wording: values go into the client's sentence", () => {
+  assert.equal(fillIn("You're in, {name}! See you {day} at {time}.", { name: "Sara", day: "Wed, Sep 30", time: "6:00 PM" }),
+    "You're in, Sara! See you Wed, Sep 30 at 6:00 PM.")
+  assert.equal(fillIn("{n} places left", { n: "2" }), "2 places left")
+  assert.equal(fillIn("Hello {nobody}", {}), "Hello {nobody}")
+})
+
+test("the waiting-list link opens WhatsApp with the message ready", () => {
+  assert.equal(whatsappLink("+961 70 123 456", "Hi & thanks"), "https://wa.me/96170123456?text=Hi%20%26%20thanks")
+  assert.equal(whatsappLink("", "Hi"), null)                        // no number: no link
 })
 
 // ------------------------------------------------------------------
