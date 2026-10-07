@@ -17,6 +17,7 @@ import {
   luminance,
   monthTitle,
   parseColour,
+  readableText,
   placesNote,
   shadeFor,
   upcoming,
@@ -292,4 +293,11 @@ test("reads the colour formats Framer gives", () => {
 test("an unreadable colour setting falls back to grey instead of breaking", () => {
   assert.equal(parseColour("olive-ish"), null)
   assert.match(shadeFor("Mat Flow", "olive-ish"), /^rgb\((\d+), \1, \1\)$/)
+})
+
+test("text in the main colour is darkened until it's readable", () => {
+  const olive = parseColour(readableText("rgb(128, 132, 67)", "#FFFFFF"))
+  const contrast = 1.05 / (luminance(olive) + 0.05)
+  assert.ok(contrast >= 4.5, `contrast ${contrast.toFixed(2)}`)
+  assert.equal(readableText("#221007", "#FFFFFF"), "rgb(34, 16, 7)") // already readable: unchanged
 })

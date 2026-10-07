@@ -8,6 +8,7 @@ export interface Booking {
   name: string
   phone: string
   created_at: string
+  told_at: string | null              // when the owner ticked "told" about a change
 }
 
 export interface OwnerSession {            // one class, as owner_sessions() returns it
@@ -41,10 +42,10 @@ export function needsAttention(sessions: OwnerSession[], lastSync: string | null
   for (const s of sessions) {
     if (Date.parse(s.starts_at) <= now.getTime()) continue
     if (s.cancelled_at) {
-      if (s.bookings.length > 0) items.push({ kind: "cancelled", session: s })
+      if (s.bookings.some((b) => !b.told_at)) items.push({ kind: "cancelled", session: s })
     } else if (s.problem) {
       items.push({ kind: "problem", session: s })
-    } else if (wasMoved(s) && s.bookings.length > 0) {
+    } else if (wasMoved(s) && s.bookings.some((b) => !b.told_at)) {
       items.push({ kind: "moved", session: s })
     }
   }
@@ -69,4 +70,16 @@ export function fullness(s: OwnerSession): { label: string; full: boolean } {
   const booked = s.bookings.length
   if (s.places === null) return { label: `${booked} booked`, full: false }
   return { label: `${booked}/${s.places}`, full: booked >= s.places }
+}
+
+// A number as WhatsApp needs it, with the country code. "+961 70…" and "00961 70…" are
+// already international; "70 123 456" or "03 123 456" gets the client's country code,
+// without the leading 0. With no country code set, the number is left as it is.
+export function internationalPhone(phone: string, countryCode: string): string {
+  const trimmed = phone.trim()
+  const code = countryCode.replace(/\D/g, "")
+  if (trimmed.startsWith("+")) return trimmed
+  if (trimmed.startsWith("00")) return `+${trimmed.slice(2)}`
+  if (!code) return trimmed
+  return `+${code}${trimmed.replace(/\D/g, "").replace(/^0+/, "")}`
 }

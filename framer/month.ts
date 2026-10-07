@@ -256,6 +256,19 @@ export function luminance(colour: number[]): number {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b
 }
 
+// The colour itself if text in it is readable on `background` (4.5:1, the accessibility
+// minimum), otherwise the colour darkened step by step until it is. For a light main
+// colour used as text.
+export function readableText(colour: string, background: string): string {
+  const fg = parseColour(colour)
+  const bg = parseColour(background) ?? [255, 255, 255]
+  if (!fg) return colour
+  const contrast = (c: number[]) => (luminance(bg) + 0.05) / (luminance(c) + 0.05)
+  let c = fg
+  for (let k = 1; contrast(c) < 4.5 && k <= 20; k++) c = fg.map((v) => Math.round(v * (1 - k * 0.05)))
+  return `rgb(${c[0]}, ${c[1]}, ${c[2]})`
+}
+
 // Framer gives colours as "#6b7a3a", "rgb(107, 122, 58)", "hsla(75, 36%, 35%, 0.5)" (when
 // the colour has transparency), or, for a colour style, "var(--token-…, rgb(107, 122, 58))".
 // Reads the first colour it finds.

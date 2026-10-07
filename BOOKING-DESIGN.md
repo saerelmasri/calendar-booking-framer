@@ -720,6 +720,26 @@ left behind. With the public key: the website's booking still answers through th
 routine; all four owner functions, both helpers and the owners table were refused.
 Public sign-ups are off and the Neroli test owner account exists.
 
+**The dashboard screen** — `framer/Dashboard.tsx` with its logic in `framer/dashboard.ts`
+(10 tests). In Framer it is one code file (`Dashboard.tsx`, `dashboard.ts` and `month.ts`
+pasted together) on the hidden page `/dashboard` (no search engines, linked from nowhere),
+with Desktop, Tablet and Phone breakpoints on the site's ivory. Framer's type check passes,
+strict mode included; screenshots of the editor's made-up data look right on desktop and
+phone. Redesigned on 5 October 2026 after Saer's review: three sections (Classes, a class's
+details, Needs attention). On desktop they sit side by side (sidebar, week list, details
+panel; each column scrolls on its own, so a long list of people moves nothing else); on the
+phone breakpoint (*Layout: Phone*) they are separate screens with a Back button. Each
+section has its own address (`#class=…`, `#attention`), so the browser's back works.
+Needs attention is grouped by kind, one line per class, details on click. Saer tested it
+logged in, in Framer's Preview, on 5 October 2026: it works.
+Polished the same day after his review: the studio's name on the login and the sidebar (a
+*Studio name* setting); **"Remember this device for X days"**, ticked by default (*Remember
+for* setting, default 30 days; unticked, the login ends when the browser closes); a spinner
+on Log in and a shimmering placeholder in the dashboard's shape while it loads, then a
+fade-in; on desktop the dashboard fills the window, with a tinted sidebar fixed to the full
+height and the list and details on one white surface, each scrolling on its own; hover
+states on everything clickable; Refresh in the main colour, Log out in red.
+
 ---
 
 ## Open items
@@ -777,6 +797,16 @@ Public sign-ups are off and the Neroli test owner account exists.
   (decided 2 October 2026). The owner logs in with **email and password** through Supabase's
   sign-in; public sign-ups are off, the agency creates the owner's account at onboarding,
   and only accounts on an owners list can see bookings or use Add, Cancel and Replace
+- **The dashboard screen** (decided 5 October 2026): one phone-first page. *Needs
+  attention* at the top, only when there's something to act on: classes hidden by a setup
+  problem (with the reason), cancelled or moved classes with people to tell (one-tap Call
+  and WhatsApp), and a sync more than 2.5 hours old; it looks at the whole month, so a
+  problem can be fixed before the week arrives. Below it, the **next 7 days**, grouped by
+  day (Today, Tomorrow, then dates); each class shows how full it is and opens to its people,
+  with Call, WhatsApp, Replace and Cancel, and *+ Add someone* (not offered when full). Cancel
+  and Replace ask first. It refreshes on opening, after every action and with a refresh
+  button. Its **look matches the client's site** (colours and fonts as settings, like the
+  calendar); its **wording is fixed English** — only the owner sees it
 - **Two booking methods, chosen per client** (decided 2 October 2026) with the component's
   *Booking* setting:
   - *Website* — the full system: name and phone, instant answer, places enforced and shown,

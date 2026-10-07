@@ -4,12 +4,12 @@
 
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { fullness, needsAttention, ownerClasses, wasMoved } from "../framer/dashboard.ts"
+import { fullness, internationalPhone, needsAttention, ownerClasses, wasMoved } from "../framer/dashboard.ts"
 import { timeOf } from "../framer/month.ts"
 
 const NOW = new Date("2026-10-03T09:00:00Z")
 const JUST_SYNCED = "2026-10-03T08:00:00Z"
-const person = (name) => ({ id: name, name, phone: "+96170000000", created_at: JUST_SYNCED })
+const person = (name, told_at = null) => ({ id: name, name, phone: "+96170000000", created_at: JUST_SYNCED, told_at })
 
 // A class as owner_sessions() returns it. By default: tomorrow, 10 places, nothing wrong.
 const cls = (title, extra = {}) => ({
@@ -97,4 +97,25 @@ test("how full: booked out of places, or just booked when there's no limit", () 
 
 test("a time on the calendar's clock", () => {
   assert.equal(timeOf(new Date("2026-10-03T13:30:00Z"), "Asia/Beirut"), "4:30 PM")
+})
+
+test("everyone told: a cancelled or moved class no longer needs attention", () => {
+  assert.deepEqual(kinds([
+    cls("Yin", { cancelled_at: JUST_SYNCED, bookings: [person("Sara", JUST_SYNCED), person("Maya", JUST_SYNCED)] }),
+    cls("Moved", { moved_from: "2026-10-03T15:00:00+00:00", bookings: [person("Rana", JUST_SYNCED)] }),
+  ]), [])
+})
+
+test("one person not told yet: it still needs attention", () => {
+  assert.deepEqual(kinds([
+    cls("Yin", { cancelled_at: JUST_SYNCED, bookings: [person("Sara", JUST_SYNCED), person("Maya")] }),
+  ]), ["cancelled: Yin"])
+})
+
+test("local numbers get the country code; international ones are kept", () => {
+  assert.equal(internationalPhone("70 123 456", "961"), "+96170123456")
+  assert.equal(internationalPhone("03 123 456", "961"), "+9613123456")
+  assert.equal(internationalPhone("+961 70 123 456", "961"), "+961 70 123 456")
+  assert.equal(internationalPhone("00961 70 123 456", "961"), "+961 70 123 456")
+  assert.equal(internationalPhone("70 123 456", ""), "70 123 456")
 })
