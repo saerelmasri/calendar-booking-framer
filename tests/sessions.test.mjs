@@ -8,6 +8,7 @@ import assert from "node:assert/strict"
 import {
   descriptionText,
   readField,
+  readFields,
   readSettings,
   resolvePlaces,
   toSession,
@@ -170,6 +171,7 @@ test("a Neroli event becomes a bookable session", () => {
     location: "Achrafieh, Beirut",
     places: 10,
     details: { Instructor: "Camila M." },
+    fields: { Instructor: "Camila M." },
     problem: null,
   })
 })
@@ -191,7 +193,14 @@ test("an untitled event gets a placeholder title", () => {
   assert.equal(toSession(event({ summary: "   " }), neroliSettings).title, "(untitled)")
 })
 
-test("private lines never reach the session row", () => {
+test("private lines never reach what visitors can see; only the owner's fields", () => {
   const row = toSession(event({ description: "Capacity: 6\nInstructor: Maya\nDoor code: 4471" }), neroliSettings)
-  assert.ok(!JSON.stringify(row).includes("4471"), "the door code must not appear anywhere in the row")
+  const { fields, ...visible } = row
+  assert.ok(!JSON.stringify(visible).includes("4471"), "the door code must not appear outside fields")
+  assert.deepEqual(fields, { Instructor: "Maya", "Door code": "4471" })
+})
+
+test("fields: every Label: value line, without sentences, links or the places line", () => {
+  const text = "Level: Beginner\nBring a towel please.\nhttps://neroli.com\nBook at: https://neroli.com\nCapacity: 6\nRoom : Studio B\nLevel: Advanced"
+  assert.deepEqual(readFields(text, "Capacity"), { Level: "Beginner", Room: "Studio B" })
 })

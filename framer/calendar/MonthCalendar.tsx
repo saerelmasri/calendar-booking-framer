@@ -6,8 +6,8 @@
 // phone number. The date, places and colour logic lives in month.ts, which has the
 // tests. Nothing here is specific to one client: everything comes from the settings panel.
 //
-// Framer code files can't import each other, so in Framer this file and month.ts are
-// one code file: month.ts pasted in place of the import below.
+// Framer gets one file: `npm run build:framer` joins this and shared/month.ts into
+// framer-build/MonthCalendar.tsx, which is what's saved to Framer.
 
 import { useEffect, useState, type CSSProperties, type FormEvent } from "react"
 import { createPortal } from "react-dom"
@@ -26,7 +26,7 @@ import {
   type CalendarSession,
   type Day,
   type PlacedSession,
-} from "./month.ts"
+} from "../shared/month.ts"
 
 const DAY_KEYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const
 

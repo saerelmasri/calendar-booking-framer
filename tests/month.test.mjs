@@ -24,7 +24,7 @@ import {
   weekdayNames,
   weekdayOf,
   whatsappLink,
-} from "../framer/month.ts"
+} from "../framer/shared/month.ts"
 
 const BEIRUT = "Asia/Beirut"
 const MON_TO_SAT = [0, 1, 2, 3, 4, 5]

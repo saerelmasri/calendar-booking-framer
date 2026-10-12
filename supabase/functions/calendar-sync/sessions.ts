@@ -2,8 +2,9 @@
 // using the client's settings.
 //
 // No network and no Deno APIs here, so the tests can load it directly.
-// Descriptions are read one "Label: value" per line; only the labels in the
-// client's settings are ever read, so private notes stay in Google Calendar.
+// Descriptions are read one "Label: value" per line. Visitors get only the labels in
+// the client's settings (details); the owner gets every such line (fields), for the
+// dashboard's filters. The database never shows fields to visitors.
 
 import type { GoogleEvent } from "./google.ts"
 
@@ -21,6 +22,7 @@ export interface SessionRow {
   location: string | null
   places: number | null            // null = unlimited (when there's no problem)
   details: Record<string, string>
+  fields: Record<string, string>   // every "Label: value" line, owner only
   problem: string | null           // set = can't be booked; the reason
 }
 
@@ -63,6 +65,7 @@ export function toSession(e: GoogleEvent, s: BookingSettings): SessionRow {
     location: e.location ?? null,
     places: places === "unlimited" ? null : places,   // in the database, null = unlimited
     details,
+    fields: readFields(text, s.placesField),
     problem,
   }
 }
@@ -76,6 +79,22 @@ export function descriptionText(description?: string): string {
     .replace(/<[^>]+>/g, "")                 // drop any other tag (<b>, <span>…)
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
+}
+
+// Every "Label: value" line in the description, for the owner's filters. A line counts
+// when it starts with a short label (up to 30 characters) and a colon. Web links and
+// the places line (Capacity) are left out; a label written twice keeps its first line.
+export function readFields(text: string, placesField: string | null): Record<string, string> {
+  const fields: Record<string, string> = {}
+  for (const line of text.split("\n")) {
+    const match = line.match(/^\s*(\p{L}[\p{L}\p{N} ._-]{0,29}?)\s*:\s*(.+?)\s*$/u)
+    if (!match) continue
+    const [, label, value] = match
+    if (/https?$/i.test(label) || value.startsWith("//") || /^https?:\/\//i.test(value)) continue
+    if (placesField && label.toLowerCase() === placesField.toLowerCase()) continue
+    if (!(label in fields)) fields[label] = value
+  }
+  return fields
 }
 
 // Find a line starting with `label` and return what follows it.

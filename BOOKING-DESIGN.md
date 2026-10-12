@@ -154,14 +154,20 @@ A detail written inside a sentence — *"Max 10 people, taught by Camila"* — i
 The session still appears, but without the detail. This is explained on the owner's
 onboarding call, and the dashboard flags it the first time it happens.
 
-### Private notes stay private
+### Private notes stay away from visitors
 
-Only the lines a client has listed are ever read. Everything else in a description — `Door
-code: 4471`, `Paid: cash`, `Driver: +961 71 000 000` — never leaves Google Calendar. It
-isn't published on the website and it isn't stored in the database.
+Visitors only ever see the lines a client has listed (`BOOKING_DETAILS`). Everything else in
+a description — `Door code: 4471`, `Paid: cash`, `Driver: +961 71 000 000` — is never
+published on the website.
 
-Reading every `Label: value` line would have needed no settings, and was rejected for
-exactly this reason: owners write private notes in their calendar.
+**Changed on 8 October 2026:** the sync now also stores **every** `Label: value` line, in a
+separate `fields` column that only the owner's dashboard can read (visitors' column grants
+don't include it). That is what lets the owner filter classes by anything they write —
+Instructor, Level, Room — without a setting. The cost: private lines now reach the database,
+not only Google Calendar, and a label like `Door code` shows up as a dashboard filter once it
+has two values. Earlier this was rejected for exactly that reason; Saer chose the freedom to
+filter. Left out of `fields`: sentences without a colon, web links, and the places line. If a
+client needs certain labels never stored, an "ignore these labels" setting is the fix.
 
 ### Number of places
 
@@ -296,7 +302,7 @@ the visitor's: at 1:30 AM on 1 October in Beirut it is October, though UTC is st
 September. Lebanon changes its clocks **at midnight**, so on one Sunday a year midnight
 doesn't exist, and on another the hour before midnight happens twice. The logic reads times
 from the browser's own timezone database and counts days on dates alone, so neither can put
-a class on the wrong day. It lives in `framer/month.ts`, tested by `npm test`.
+a class on the wrong day. It lives in `framer/shared/month.ts`, tested by `npm test`.
 
 ### States
 
@@ -306,7 +312,7 @@ a class on the wrong day. It lives in `framer/month.ts`, tested by `npm test`.
 
 ### Settings on the component, per client site
 
-The component is `framer/MonthCalendar.tsx`; its settings panel in Framer holds everything
+The component is `framer/calendar/MonthCalendar.tsx`; its settings panel in Framer holds everything
 that differs between clients:
 
 - **Supabase URL** and **public key** — both safe to publish
@@ -335,9 +341,12 @@ calendar is set to *List*. Main colour: the site's olive (*Green*, rgb(128, 132,
 
 ### Two things Framer imposes
 
-- **Code files can't import each other.** In Framer the component and `month.ts` are one
-  code file: `month.ts` pasted in place of the component's import. The repo keeps two files
-  so the logic stays testable
+- **Code files can't import each other.** So the repo is organised in folders
+  (`framer/shared`, `framer/calendar`, `framer/dashboard`, logic in its own tested files)
+  and `npm run build:framer` joins each component into one file in `framer-build/`, which
+  is what gets saved to Framer. For a new client, copy those two files. The build stops if
+  two files declare the same name, since in one file they would clash; and `npm test` fails if
+  `framer-build/` is out of date with `framer/`
 - **A colour style reaches code as its name only** (`var(--token-…)`), with no colour value,
   so the shades can't be worked out from it and come out grey. Set the main colour as a plain
   colour, not a colour style. (Today's highlight is unaffected; the browser resolves it.)
@@ -669,7 +678,7 @@ with only those columns (*Barre Basics* showed `bookable: false`, its problem no
 asking for `problem` and trying to change a title were both refused; the timezone read
 `Asia/Beirut`.
 
-**The month logic** — `framer/month.ts`, with 30 tests in `tests/month.test.mjs`: the month
+**The month logic** — `framer/shared/month.ts`, with 30 tests in `tests/month.test.mjs`: the month
 and "today" in the calendar's timezone, both of Lebanon's midnight clock changes, the grid in
 whole weeks with blank days outside the month, a hidden day getting its column when it has a
 class, the phone's list of upcoming classes (30 days ahead, unbookable ones kept), 12-hour
@@ -683,7 +692,7 @@ and 32 days ahead. Verified on 28 September 2026 with the real data:
 - The 28 October class is stored an hour later in UTC than the others, because Lebanon is on
   winter time by then, and still reads 2:00 PM
 
-**The calendar component** — `framer/MonthCalendar.tsx`: loads the classes, shows the month
+**The calendar component** — `framer/calendar/MonthCalendar.tsx`: loads the classes, shows the month
 grid or the phone list, the loading / empty / can't-load states, and the settings panel.
 Placed on Neroli's site on 29 September 2026 (see *On Neroli's site*): Framer's own type
 check passes, strict mode included, and screenshots of the editor canvas (which shows
@@ -700,7 +709,7 @@ non-phone, a flagged class and a started class were each refused with the right 
 **16 bookings fired at the same moment at a class with 9 places left gave exactly 9 bookings
 and 7 *full***; places left then read 0; reading the `bookings` table was refused.
 
-**Booking on the calendar** — `framer/MonthCalendar.tsx`: places left (from 3 or fewer) and
+**Booking on the calendar** — `framer/calendar/MonthCalendar.tsx`: places left (from 3 or fewer) and
 *Full* on the cards; tapping a class opens a panel with name, phone and Book, answered at
 once; the WhatsApp waiting-list link on full classes when a number is set; the *Booking*
 setting for the WhatsApp method. The old `bookable` column was dropped
@@ -720,9 +729,10 @@ left behind. With the public key: the website's booking still answers through th
 routine; all four owner functions, both helpers and the owners table were refused.
 Public sign-ups are off and the Neroli test owner account exists.
 
-**The dashboard screen** — `framer/Dashboard.tsx` with its logic in `framer/dashboard.ts`
-(10 tests). In Framer it is one code file (`Dashboard.tsx`, `dashboard.ts` and `month.ts`
-pasted together) on the hidden page `/dashboard` (no search engines, linked from nowhere),
+**The dashboard screen** — `framer/dashboard/` (split by job on 11 October 2026: the
+component, layout, sections, parts, styles, server and logic, each in its own file), with
+its logic in `framer/dashboard/logic.ts` (tested). In Framer it is one code file,
+`framer-build/Dashboard.tsx`, made by `npm run build:framer` on the hidden page `/dashboard` (no search engines, linked from nowhere),
 with Desktop, Tablet and Phone breakpoints on the site's ivory. Framer's type check passes,
 strict mode included; screenshots of the editor's made-up data look right on desktop and
 phone. Redesigned on 5 October 2026 after Saer's review: three sections (Classes, a class's
@@ -740,7 +750,75 @@ fade-in; on desktop the dashboard fills the window, with a tinted sidebar fixed 
 height and the list and details on one white surface, each scrolling on its own; hover
 states on everything clickable; Refresh in the main colour, Log out in red.
 
+**Design critique fixes** (6–9 October 2026), from a design review of the dashboard, built in
+seven steps, each type-checked in Framer (strict too) with the logic covered by `npm test`.
+**Not yet tested by Saer** — all seven are tested together at the end.
+1. *Safe removing*: an inline confirmation naming the person and what happens to the spot.
+2. *Loud alerts*: Warning colour, icons, an amber badge when something needs action, the
+   late-sync banner above every section.
+3. *Fresh data*: reload on return and every 5 minutes, *Updated …*, ✓ confirmations,
+   refusals under their form, screen-reader labels.
+4. *Finishing Needs attention*: migration `20261007113000_told.sql` (`told_at`, reset on move
+   or cancel, `owner_mark_told`), Told ticks, ready-written WhatsApp messages, booking on
+   another class, the *Country code* setting.
+5. *Further ahead*: search, *Later this month*, and filters; migration
+   `20261008100000_fields.sql` (the owner-only `fields` column; the sync redeployed to fill it).
+6. *Thumb reach*: the phone's bottom bar (drawn into the page body so it stays on screen) and
+   the "•••" menu for Log out.
+7. *Polish*: aligned times and counts, grouped phone numbers, one wording for how full a
+   class is, empty screens that say what to do next.
+
+Saer tested steps 1–7 on 9 October 2026. Three things failed and were fixed the same day:
+- **Refresh didn't show Google changes.** Refresh now syncs Google Calendar first, through
+  migration `20261009150000_owner_sync.sql` (`owner_sync()`, owner only, using the Vault
+  like the timer), then reloads until the sync lands.
+- **Phone search only matched numbers typed the stored way.** It now also matches the +961
+  form, or a number written with a leading 0.
+- **Refusal messages didn't match the dashboard's look.** They are now a ⚠ line in the
+  Warning colour.
+
+**Second design critique** (11 October 2026): 25/40, up from 24. All five first-round
+issues were fixed; the review found a new layer, and all five were fixed the same day,
+plus a polish pass. **Not yet tested by Saer.**
+1. Booking someone on another class no longer ticks *Told*, and their message names the
+   new class.
+2. One compact line per person: WhatsApp and "•••" (Replace, Remove); red only when
+   confirming.
+3. One ✓ toast, always in sight and announced; focus returns to the list after an action.
+4. On a phone, filters fold behind *Filter*; *+ Add someone* sits above the people.
+5. Forms have Cancel, Escape, visible labels and focus; *Removing…* while it works.
+6. Polish:
+   - the badge counts classes only
+   - the people heading is just *People*
+   - hidden classes show their count muted
+   - Needs attention opens its first item on desktop
+   - the placeholder shows while checking the login
+   - setup problems say how to fix them
+   - the sync banner says website bookings still work
+   - Refresh says it syncs Google Calendar
+
+Then, before the third critique (11 October 2026), also **not yet tested by Saer**:
+- **A "Next class" card** at the top of the phone's Classes: today's class under way or
+  next ("Next · in 25 min", or "Now · until 11:00 PM"), how full it is, **+ Walk-in** (opens
+  the class with Add ready) and *Who's coming*. Hidden while searching or filtering.
+- **Everyone at once** in Needs attention: *Copy message for everyone* (the same message
+  without a name, for a WhatsApp broadcast list or group; a link can only open one chat)
+  and *Mark all N as told*.
+- Undo after Remove was considered and left out: Remove already asks first.
+- **Move to another class**, in one step (migration `20261011140000_owner_move.sql`,
+  `owner_move()`): booked on the other class and the place here freed, or nothing changes if
+  that class is full. In Needs attention for a moved class (*Can't make it? Move to another
+  class…*) and in every class's "•••" (Replace · Move · Remove). The toast offers *Tell Sara*,
+  a WhatsApp message saying where they've been moved.
+
 ---
+
+## Ideas for later
+
+- **An arrival tick**: ticking people off as they walk in. The most studio-specific action
+  the dashboard doesn't have yet; it needs a small migration.
+- **The same filters on the public calendar**, for visitors.
+- **An "ignore these labels" setting**, so lines like door codes are never stored.
 
 ## Open items
 
@@ -756,7 +834,8 @@ states on everything clickable; Refresh in the main colour, Log out in red.
 - Booking collects name and phone only, with no account and an instant answer
 - **Nothing client-specific is written in the code** — field names, limits and calendars are
   per-client settings
-- Descriptions are read one `Label: value` per line; only listed labels are read
+- Descriptions are read one `Label: value` per line; visitors see only the listed labels, the
+  owner's dashboard gets every line (for its filters)
 - The number of places: written value, else the client's default, else flagged
 - The timezone comes from the calendar itself
 - All-day events are skipped
@@ -797,16 +876,39 @@ states on everything clickable; Refresh in the main colour, Log out in red.
   (decided 2 October 2026). The owner logs in with **email and password** through Supabase's
   sign-in; public sign-ups are off, the agency creates the owner's account at onboarding,
   and only accounts on an owners list can see bookings or use Add, Cancel and Replace
-- **The dashboard screen** (decided 5 October 2026): one phone-first page. *Needs
-  attention* at the top, only when there's something to act on: classes hidden by a setup
-  problem (with the reason), cancelled or moved classes with people to tell (one-tap Call
-  and WhatsApp), and a sync more than 2.5 hours old; it looks at the whole month, so a
-  problem can be fixed before the week arrives. Below it, the **next 7 days**, grouped by
-  day (Today, Tomorrow, then dates); each class shows how full it is and opens to its people,
-  with Call, WhatsApp, Replace and Cancel, and *+ Add someone* (not offered when full). Cancel
-  and Replace ask first. It refreshes on opening, after every action and with a refresh
-  button. Its **look matches the client's site** (colours and fonts as settings, like the
-  calendar); its **wording is fixed English** — only the owner sees it
+- **The dashboard screen** (decided 5 October 2026, reshaped 9 October after the design
+  critique): two sections, **Classes** and **Needs attention**, and a class's details. On
+  desktop: a tinted sidebar, then the list and the details side by side. On a phone: one
+  screen at a time, with the sections and Refresh in a **bar at the bottom** (thumb reach) and
+  Log out in a "•••" menu at the top.
+  - *Classes*: the **next 7 days** by day (Today, Tomorrow, then dates), then *Later this
+    month* on request; a **search** (class, person, part of a phone number, or anything in
+    the description) and **filters** built from the classes themselves — Location and every
+    `Label: value` line with 2+ values this month (on a phone, folded behind a *Filter*
+    button). Each class opens with *+ Add someone* first (not offered when full), then its
+    people: one line each, with a WhatsApp button and "•••" for Replace and Remove. Red
+    appears only in the remove confirmation. No Call button (removed 6 October).
+  - *Needs attention* looks at the whole month: classes hidden by a setup problem (with the
+    reason) and cancelled or moved classes with people to tell. Each person has a ready-
+    written WhatsApp message and a **Told** tick; a class leaves the list when everyone is
+    ticked, and the ticks reset if it moves or is cancelled again. People from a cancelled
+    class can be **booked on another class** in one step; that doesn't tick Told, and their
+    message then says where they've been booked. A hidden class says how to fix it (*Add a
+    line like "Capacity: 10"…*). A sync more than 2.5 hours late is a banner above every
+    section, saying website bookings still work.
+  - **Removing someone asks first**, inline, naming the person and what happens to the spot,
+    with *Replace instead* offered. Every action confirms with a ✓ toast for 5 seconds,
+    above the phone's bar or at the bottom on desktop, also announced to screen readers; a
+    refusal is a ⚠ line under the form it came from. Add and Replace have Cancel.
+  - It reloads on opening, when the owner comes back to the tab (if older than a minute),
+    every 5 minutes while open, after every action, and with Refresh; it says *Updated 3 min
+    ago*.
+  - Phone numbers missing a country code get the client's (*Country code* setting) for
+    WhatsApp, and are shown grouped (+961 70 123 456). How full a class is reads the same
+    everywhere: *7/10*, *Full · 10/10*, or *7 booked* when there's no limit.
+  - Its **look matches the client's site** (colours and fonts as settings, like the
+    calendar, plus *Warning* and *Danger*); its **wording is fixed English** — only the owner
+    sees it
 - **Two booking methods, chosen per client** (decided 2 October 2026) with the component's
   *Booking* setting:
   - *Website* — the full system: name and phone, instant answer, places enforced and shown,
